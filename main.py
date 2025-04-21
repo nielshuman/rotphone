@@ -96,10 +96,12 @@ def pjsua2_test():
   # Create the account
   acc = Account();
   acc.create(acfg);
-  # Here we don't have anything else to do..
-  for i in range(ep.audDevManager().getDevCount()):
-    info = ep.audDevManager().getDevInfo(i)
-    print(f"{i}: {info.name} (input={info.inputCount}, output={info.outputCount})")
+  count = ep.audDevManager().getDevCount()
+  print(f"Found {count} audio devices:")
+  for i in range(count):
+      info = ep.audDevManager().getDevInfo(i)
+      print(f"{i}: {info.name} (input={info.inputCount}, output={info.outputCount})")
+
   
   
   while True:
