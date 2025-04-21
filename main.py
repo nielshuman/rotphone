@@ -1,9 +1,12 @@
-import pjsua2 as pj
 from print_color import print
 import time
 import os
 from dotenv import load_dotenv
+import pjsua2 as pj
 load_dotenv()
+
+from convert_audio import convert_audio
+convert_audio("_audio", "audio")
 
 ep = pj.Endpoint()
 
@@ -29,26 +32,35 @@ class MyCall(pj.Call):
   def __init__(self, account, callId = pj.INVALID_ID):
     pj.Call.__init__(self, account, callId)
     self.account = account
+    self.account.current_call = self
 
   def onCallState(self, prm):
-      ci = self.getInfo()
-      print('Callstate: %s' % (ci.stateText), tag="Call", tag_color="blue")
-      if ci.state == pj.PJSIP_TP_STATE_DISCONNECTED:
-        self.account.current_call = None
+    ci = self.getInfo()
+    print('Callstate: %s' % (ci.stateText), tag="Call", tag_color="blue")
+    if ci.state == pj.PJSIP_TP_STATE_DISCONNECTED:
+      self.account.current_call = None
       
   def onCallMediaState(self, prm):
-        ci = self.getInfo()
-        print("Call media state", tag="Call", tag_color="blue")
-        print(f'Callstate: {ci.stateText}', tag="Call", tag_color="blue")
-        for mi in ci.media:
-            if mi.type == pj.PJMEDIA_TYPE_AUDIO and \
-              (mi.status == pj.PJSUA_CALL_MEDIA_ACTIVE or \
-               mi.status == pj.PJSUA_CALL_MEDIA_REMOTE_HOLD):
-                m = self.getMedia(mi.index)
-                am = pj.AudioMedia.typecastFromMedia(m)
-                # connect ports
-                ep.audDevManager().getCaptureDevMedia().startTransmit(am)
-                am.startTransmit(ep.audDevManager().getPlaybackDevMedia())
+      ci = self.getInfo()
+      print("Call media state", tag="Call", tag_color="blue")
+      for mi in ci.media:
+          if mi.type != pj.PJMEDIA_TYPE_AUDIO:
+            continue
+          
+          if (mi.status == pj.PJSUA_CALL_MEDIA_ACTIVE or mi.status == pj.PJSUA_CALL_MEDIA_REMOTE_HOLD):
+              callAudioMedia = self.getAudioMedia(mi.index)
+              # connect ports
+              print('BAaasadsadps')
+
+              captureAudioMedia = ep.audDevManager().getCaptureDevMedia()
+              playbackAudioMedia = ep.audDevManager().getPlaybackDevMedia()
+              # captureAudioMedia.startTransmit(callAudioMedia)
+              
+              self.player = pj.AudioMediaPlayer()
+              self.player.createPlayer("audio/flylikeme.wav")
+              self.player.startTransmit(callAudioMedia)
+              callAudioMedia.startTransmit(playbackAudioMedia)
+              self.callAudioMedia = callAudioMedia
                 
   def onDtmfDigit(self, prm):
        print('Got DTMF:' + prm.digit, tag="Call", tag_color="blue")
@@ -77,16 +89,21 @@ def pjsua2_test():
 
   acfg = pj.AccountConfig();
   acfg.idUri = os.getenv("SIP_ID_URI");
-  acfg.regConfig.registrarUri = os.getenv("SIP_REG_URI");
+  acfg.regConfig.registrarUri = "sip:" + os.getenv("SIP_REG_HOST");
   cred = pj.AuthCredInfo("digest", "*", os.getenv("SIP_AUTH_ID"), 0, os.getenv("SIP_AUTH_PASS"));
   acfg.sipConfig.authCreds.append(cred);
   
   # Create the account
   acc = Account();
   acc.create(acfg);
-  
   # Here we don't have anything else to do..
-  time.sleep(60);
+  for i in range(ep.audDevManager().getDevCount()):
+    info = ep.audDevManager().getDevInfo(i)
+    print(f"{i}: {info.name} (input={info.inputCount}, output={info.outputCount})")
+  
+  
+  while True:
+    time.sleep(1)
 
   # Destroy the library
   ep.libDestroy()
