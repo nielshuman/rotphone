@@ -104,7 +104,9 @@ def pjsua2_test():
 
   ep.audDevManager().setPlaybackDev(19)
   playbackDev = ep.audDevManager().getPlaybackDevMedia()
-  
+  player = pj.AudioMediaPlayer()
+  player.createPlayer("audio/flylikeme.wav")
+  player.startTransmit(playbackDev)
   while True:
     time.sleep(1)
 
