@@ -86,7 +86,10 @@ def pjsua2_test():
   
   # Start the library
   ep.libStart();
-
+  ep.audDevManager().setPlaybackDev(int(os.getenv("PJSUA_PLAYBACK_DEV")))
+  print("Playback device: ", ep.audDevManager().getDevInfo(ep.audDevManager().getPlaybackDev()).name, tag="Audio", tag_color="blue")
+  ep.audDevManager().setCaptureDev(int(os.getenv("PJSUA_CAPTURE_DEV")))
+  print("Capture device: ", ep.audDevManager().getDevInfo(ep.audDevManager().getCaptureDev()).name, tag="Audio", tag_color="blue")
   acfg = pj.AccountConfig();
   acfg.idUri = os.getenv("SIP_ID_URI");
   acfg.regConfig.registrarUri = "sip:" + os.getenv("SIP_REG_HOST");
@@ -102,7 +105,6 @@ def pjsua2_test():
       info = ep.audDevManager().getDevInfo(i)
       print(f"{i}: {info.name} (input={info.inputCount}, output={info.outputCount})")
 
-  ep.audDevManager().setPlaybackDev(19)
   playbackDev = ep.audDevManager().getPlaybackDevMedia()
   player = pj.AudioMediaPlayer()
   player.createPlayer("audio/flylikeme.wav")
