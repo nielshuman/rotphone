@@ -1,2 +1,3 @@
 - install ALSA (libasound2-dev)
-- install normally (with flags)
+- Configure with flags
+- install normall

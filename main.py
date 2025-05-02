@@ -102,7 +102,8 @@ def pjsua2_test():
       info = ep.audDevManager().getDevInfo(i)
       print(f"{i}: {info.name} (input={info.inputCount}, output={info.outputCount})")
 
-  
+  ep.audDevManager().setPlaybackDev(19)
+  playbackDev = ep.audDevManager().getPlaybackDevMedia()
   
   while True:
     time.sleep(1)
