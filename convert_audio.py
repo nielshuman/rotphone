@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-
 def convert_audio(input_dir, output_dir):
     for file in os.listdir(input_dir):
         filename = os.path.splitext(file)[0]
@@ -15,5 +14,6 @@ def convert_audio(input_dir, output_dir):
             '-sample_fmt', 's16',
             os.path.join(output_dir, f'{filename}.wav')
         ]
+        
         print(f'Converting {file} to {filename}.wav')
         subprocess.run(command, check=True)
