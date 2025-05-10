@@ -50,7 +50,6 @@ class MyCall(pj.Call):
           if (mi.status == pj.PJSUA_CALL_MEDIA_ACTIVE or mi.status == pj.PJSUA_CALL_MEDIA_REMOTE_HOLD):
               callAudioMedia = self.getAudioMedia(mi.index)
               self.callAudioMedia = callAudioMedia
-              print('BAaasadsadps')
 
               # connect ports
               captureAudioMedia = ep.audDevManager().getCaptureDevMedia()
