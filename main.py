@@ -49,6 +49,8 @@ class FuckingkutzooiHandler():
             self.ondigit(command)
   
   def onCallDisconnect(self):
+    if phoneHook.is_pressed:
+      Sounds.disconnected.play()
     if bells.ringing:
       bells.stop()
     self.onpickupPhone = None
@@ -56,18 +58,21 @@ class FuckingkutzooiHandler():
     self.ondigit = None
 
   def start_number_input(self):
+    self.onhangupPhone = self.cancel_number_input
+    printc("Starting number input", tag="Dialer", tag_color="green")
     Sounds.startup.play()
     self.ondigit = self.handle_number_digit
     
   def cancel_number_input(self):
-    if self.ondigit:
-      self.ondigit = None
-      self._number = ""
-      printc("Canceled number input", tag="Dialer", tag_color="red")
+    self.ondigit = None
+    self._number = ""
+    printc("Canceled number input", tag="Dialer", tag_color="red")
     
   def handle_number_digit(self, digit):
     self._number += str(digit)
+    print('\rNumber:' + self._number, flush=True, end="")
     if len(self._number) == 10:
+      print('')
       printc("Calling number: " + self._number, tag="Dialer", tag_color="green")
       #account.placeCall("sip:" + self._number + "@" + os.getenv("SIP_REG_HOST"))
       self._number = ""
@@ -90,8 +95,8 @@ def initialize_pjsua():
     
 def set_audio_devices():
   ep.audDevManager().setPlaybackDev(int(os.getenv("PJSUA_PLAYBACK_DEV")))
-  printc("Playback device:", ep.audDevManager().getDevInfo(ep.audDevManager().getPlaybackDev()).name, tag="Audio", tag_color="blue")
   ep.audDevManager().setCaptureDev(int(os.getenv("PJSUA_CAPTURE_DEV")))
+  printc("Playback device:", ep.audDevManager().getDevInfo(ep.audDevManager().getPlaybackDev()).name, tag="Audio", tag_color="blue")
   printc("Capture device:", ep.audDevManager().getDevInfo(ep.audDevManager().getCaptureDev()).name, tag="Audio", tag_color="blue")
 
 def get_account_config():
@@ -203,7 +208,7 @@ class MyCall(pj.Call):
               captureAudioMedia = ep.audDevManager().getCaptureDevMedia()
               playbackAudioMedia = ep.audDevManager().getPlaybackDevMedia()
               
-              captureAudioMedia.startTransmit(callAudioMedia)
+              # captureAudioMedia.startTransmit(callAudioMedia)
               callAudioMedia.startTransmit(playbackAudioMedia)
                 
   def onDtmfDigit(self, prm):
@@ -239,7 +244,6 @@ def main():
   acc.create(get_account_config())
   
   fuckingkutzooiHandler.onpickupPhone = fuckingkutzooiHandler.start_number_input
-  fuckingkutzooiHandler.onhangupPhone = fuckingkutzooiHandler.cancel_number_input
 
   # ep.libRegisterThread('gpiozero')
   while True:
