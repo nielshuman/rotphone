@@ -8,12 +8,23 @@ load_dotenv()
 
 import simpleaudio as sa
 
-
 class Sounds:
   startup = sa.WaveObject.from_wave_file('audio/startup.wav')
   connected = sa.WaveObject.from_wave_file('audio/connected.wav')
   ringing = sa.WaveObject.from_wave_file('audio/ringing.wav')
   disconnected = sa.WaveObject.from_wave_file('audio/disconnected.wav')
+  digits = {
+    0: sa.WaveObject.from_wave_file('audio/marimba_hit/C.wav'),
+    1: sa.WaveObject.from_wave_file('audio/marimba_hit/D.wav'),
+    2: sa.WaveObject.from_wave_file('audio/marimba_hit/E.wav'),
+    3: sa.WaveObject.from_wave_file('audio/marimba_hit/F#.wav'),
+    4: sa.WaveObject.from_wave_file('audio/marimba_hit/G.wav'),
+    5: sa.WaveObject.from_wave_file('audio/marimba_hit/A.wav'),
+    6: sa.WaveObject.from_wave_file('audio/marimba_hit/B.wav'),
+    7: sa.WaveObject.from_wave_file('audio/marimba_hit/high_C.wav'),
+    8: sa.WaveObject.from_wave_file('audio/marimba_hit/high_D.wav'),
+    9: sa.WaveObject.from_wave_file('audio/marimba_hit/high_E.wav'),
+  }
   
 from convert_audio import convert_audio
 convert_audio("audio")
@@ -28,8 +39,9 @@ class FuckingkutzooiHandler():
     self.onpickupPhone = None
     self.onhangupPhone = None
     self.ondigit = None
-
+    self.account = None
     self._number = ""
+    self.ringplayobj = None
     
     phoneHook.when_pressed = lambda: self.command_queue.put("pickupPhone")
     phoneHook.when_released = lambda: self.command_queue.put("hangupPhone")
@@ -53,8 +65,9 @@ class FuckingkutzooiHandler():
       Sounds.disconnected.play()
     if bells.ringing:
       bells.stop()
-    self.onpickupPhone = None
-    self.onhangupPhone = None
+    
+    self.onpickupPhone = self.start_number_input
+    self.onhangupPhone = self.cancel_number_input
     self.ondigit = None
 
   def start_number_input(self):
@@ -69,15 +82,33 @@ class FuckingkutzooiHandler():
     printc("Canceled number input", tag="Dialer", tag_color="red")
     
   def handle_number_digit(self, digit):
+    Sounds.digits[digit].play()
     self._number += str(digit)
     print('\rNumber:' + self._number, flush=True, end="")
+    if (digit == 9):
+      self._number = '0626255234'
     if len(self._number) == 10:
       print('')
       printc("Calling number: " + self._number, tag="Dialer", tag_color="green")
-      #account.placeCall("sip:" + self._number + "@" + os.getenv("SIP_REG_HOST"))
+      time.sleep(1)
+      for d in self._number:
+        Sounds.digits[int(d)].play()
+        time.sleep(0.3)
+      self.account.place_call("sip:" + self._number + "@" + os.getenv("SIP_REG_HOST"))
       self._number = ""
       self.ondigit = None
-    
+      self.ringplayobj = 'not none hahaha'
+      time.sleep(1)
+      while self.ringplayobj is not None:
+        self.ringplayobj = Sounds.ringing.play()
+        self.ringplayobj.wait_done()
+  
+  def onPlacedCallAnswer(self):
+    if self.ringplayobj is not None:
+      self.ringplayobj.stop()
+      self.ringplayobj = None
+    Sounds.connected.play()
+    printc("Remote call answered", tag="Dialer", tag_color="green")
     
 fuckingkutzooiHandler = FuckingkutzooiHandler()
 
@@ -96,9 +127,10 @@ def initialize_pjsua():
 def set_audio_devices():
   ep.audDevManager().setPlaybackDev(int(os.getenv("PJSUA_PLAYBACK_DEV")))
   ep.audDevManager().setCaptureDev(int(os.getenv("PJSUA_CAPTURE_DEV")))
+  ep.audDevManager().setOutputVolume(60)
   printc("Playback device:", ep.audDevManager().getDevInfo(ep.audDevManager().getPlaybackDev()).name, tag="Audio", tag_color="blue")
+  printc('Playback Volume:', ep.audDevManager().getOutputVolume(), tag="Audio", tag_color="blue")
   printc("Capture device:", ep.audDevManager().getDevInfo(ep.audDevManager().getCaptureDev()).name, tag="Audio", tag_color="blue")
-
 def get_account_config():
   acfg = pj.AccountConfig()
   acfg.idUri = os.getenv("SIP_ID_URI");
@@ -132,18 +164,19 @@ class Account(pj.Account):
     #   return
     
     # already managed by PBX, not nessary to reject
+    if phoneHook.is_pressed:
+      printc("Phone is off hook, rejecting incoming call", color="red")
+      reject_prm = pj.CallOpParam()
+      reject_prm.statusCode = pj.PJSIP_SC_BUSY_HERE
+      call = pj.Call(self, prm.callId)
+      call.hangup(reject_prm)
+      return
     
     self.current_call = MyCall(self, prm.callId)
     c = self.current_call
     ci = c.getInfo()
     printc("Incoming call from %s" % (ci.remoteUri), color="yellow")
     
-    if phoneHook.is_pressed:
-      printc("Phone is off hook, rejecting incoming call", color="red")
-      reject_prm = pj.CallOpParam()
-      reject_prm.statusCode = pj.PJSIP_SC_BUSY_HERE
-      c.hangup(reject_prm)
-      return
     
     #  start ringing
     bells.ring()
@@ -173,12 +206,23 @@ class Account(pj.Account):
     hangup_prm = pj.CallOpParam()
     hangup_prm.statusCode = pj.PJSIP_SC_OK
     self.current_call.hangup(hangup_prm)
-    fuckingkutzooiHandler.onCallDisconnect()
-    self.current_call = None
     printc("Call hung up", tag="Account", tag_color="purple")
     
-
-
+  def place_call(self, number):
+      if self.current_call is not None:
+        printc("Already in a call, rejecting new call", color="red")
+        return
+      
+      printc("Placing call to " + number, tag="Account", tag_color="purple")
+      self.current_call = MyCall(self)
+      c = self.current_call
+      call_prm = pj.CallOpParam()
+      c.makeCall(number, call_prm)
+      
+      fuckingkutzooiHandler.onpickupPhone = None
+      fuckingkutzooiHandler.onhangupPhone = self.hangup_current_call
+  
+  
 class MyCall(pj.Call):
   def __init__(self, account, callId = pj.INVALID_ID):
     pj.Call.__init__(self, account, callId)
@@ -187,15 +231,23 @@ class MyCall(pj.Call):
     
   def onCallState(self, prm):
     ci = self.getInfo()
-    printc('Callstate: %s' % (ci.stateText), tag="Call", tag_color="blue")
-    
+    printc(f'Callstate: {ci.stateText} ({ci.state})', tag="Call", tag_color="blue")
+    # if ci.state == pj.PJSIP_INV_STATE_EARLY:
+    if ci.state == pj.PJSIP_INV_STATE_CONNECTING:
+      fuckingkutzooiHandler.onPlacedCallAnswer()
+      self.onCallMediaState(None) # hack to connect when receiving a call, because we don't get a media state event when answering an incoming call after EARLY for some reason
     if ci.state == pj.PJSIP_INV_STATE_DISCONNECTED:
       fuckingkutzooiHandler.onCallDisconnect()
       self.account.current_call = None
       
+      
   def onCallMediaState(self, prm):
       ci = self.getInfo()
       printc("Call media state", tag="Call", tag_color="blue")
+      if ci.state == pj.PJSIP_INV_STATE_EARLY:
+          printc("Call is in early state, not connecting media", tag="Call", tag_color="yellow")
+          return
+      
       for mi in ci.media:
           if mi.type != pj.PJMEDIA_TYPE_AUDIO:
             continue
@@ -203,7 +255,7 @@ class MyCall(pj.Call):
           if (mi.status == pj.PJSUA_CALL_MEDIA_ACTIVE or mi.status == pj.PJSUA_CALL_MEDIA_REMOTE_HOLD):
               callAudioMedia = self.getAudioMedia(mi.index)
               self.callAudioMedia = callAudioMedia
-
+              printc("Connecting call audio media", tag="Call", tag_color="blue")
               # connect ports
               captureAudioMedia = ep.audDevManager().getCaptureDevMedia()
               playbackAudioMedia = ep.audDevManager().getPlaybackDevMedia()
@@ -244,6 +296,7 @@ def main():
   acc.create(get_account_config())
   
   fuckingkutzooiHandler.onpickupPhone = fuckingkutzooiHandler.start_number_input
+  fuckingkutzooiHandler.account = acc
 
   # ep.libRegisterThread('gpiozero')
   while True:
